@@ -1,0 +1,378 @@
+<?php
+
+use App\Http\Controllers\Mahasiswa\MahasiswaDashboardController;
+use App\Http\Controllers\Mahasiswa\MahasiswaPendaftaranController;
+use App\Http\Controllers\Mahasiswa\MahasiswaProfilController;
+use App\Http\Controllers\Mahasiswa\MahasiswaProposalController;
+
+use App\Http\Controllers\Mahasiswa\MahasiswaLogbookController;
+
+use App\Http\Controllers\ProfileController;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+
+/*
+|--------------------------------------------------------------------------
+| Web Routes - Sistem Informasi Kerja Praktik (SIKP)
+|--------------------------------------------------------------------------
+*/
+
+// Root redirect to login or dashboard
+Route::get('/', function (Illuminate\Http\Request $request) {
+    if ($user = $request->user()) {
+        return redirect($user->dashboardRoute());
+    }
+    return redirect()->route('login');
+});
+
+// Generic dashboard named route redirecting to role-specific dashboard
+Route::get('/dashboard', function (Illuminate\Http\Request $request) {
+    if ($user = $request->user()) {
+        return redirect($user->dashboardRoute());
+    }
+    return redirect()->route('login');
+})->middleware('auth')->name('dashboard');
+
+// Halaman Panduan & Berkas Resmi KP
+Route::get('/panduan', function () {
+    return Inertia::render('Panduan');
+})->name('panduan');
+
+// ============================================================
+// KONFIRMASI INSTANSI ROUTES (PUBLIC / TANPA LOGIN)
+// ============================================================
+Route::get('/konfirmasi/{token}', [\App\Http\Controllers\KonfirmasiInstansiController::class, 'show'])
+    ->middleware('throttle:15,1')
+    ->name('konfirmasi.show');
+Route::post('/konfirmasi/{token}', [\App\Http\Controllers\KonfirmasiInstansiController::class, 'confirm'])
+    ->middleware('throttle:15,1')
+    ->name('konfirmasi.confirm');
+
+// Switch Language / Ganti Bahasa
+Route::get('/locale/{locale}', function (string $locale) {
+    if (in_array($locale, ['id', 'en'])) {
+        session(['locale' => $locale]);
+        app()->setLocale($locale);
+        return back()->withCookie(cookie('locale', $locale, 60 * 24 * 365));
+    }
+    return back();
+})->name('locale.switch');
+
+
+// ============================================================
+// MAHASISWA ROUTES
+// ============================================================
+Route::middleware(['auth', 'role:mahasiswa'])
+    ->prefix('mahasiswa')
+    ->name('mahasiswa.')
+    ->group(function () {
+
+        // Dashboard
+        Route::get('/dashboard', [MahasiswaDashboardController::class, 'index'])
+            ->name('dashboard');
+
+        // Profil
+        Route::put('/profil', [MahasiswaProfilController::class, 'update'])
+            ->name('profil.update');
+
+        // =========================
+        // PENDAFTARAN
+        // =========================
+        Route::get('/pendaftaran', [MahasiswaPendaftaranController::class, 'index'])
+            ->name('pendaftaran');
+
+        Route::post('/pendaftaran', [MahasiswaPendaftaranController::class, 'store'])
+            ->name('pendaftaran.store');
+
+        Route::post('/pendaftaran/draft', [MahasiswaPendaftaranController::class, 'saveDraft'])
+            ->name('pendaftaran.draft');
+
+        Route::put('/pendaftaran/{pendaftaran}', [MahasiswaPendaftaranController::class, 'update'])
+            ->name('pendaftaran.update');
+
+        Route::delete('/pendaftaran/{pendaftaran}', [MahasiswaPendaftaranController::class, 'destroy'])
+            ->name('pendaftaran.destroy');
+
+        Route::post('/pendaftaran/{pendaftaran}/cancel', [MahasiswaPendaftaranController::class, 'cancel'])
+            ->name('pendaftaran.cancel');
+
+        Route::get('/pendaftaran/{pendaftaran}/download/{jenis}', [MahasiswaPendaftaranController::class, 'download'])
+            ->name('pendaftaran.download');
+
+        Route::get('/status-pengajuan', [MahasiswaPendaftaranController::class, 'statusPengajuan'])
+            ->name('status-pengajuan');
+
+        // =========================
+        // SURAT PENGANTAR (Step 2)
+        // =========================
+        Route::middleware('kp.step:2')->group(function () {
+            Route::get('/surat-pengantar', [App\Http\Controllers\Mahasiswa\MahasiswaSuratPengantarController::class, 'index'])
+                ->name('surat-pengantar');
+            Route::post('/surat-pengantar', [App\Http\Controllers\Mahasiswa\MahasiswaSuratPengantarController::class, 'store'])
+                ->name('surat-pengantar.store');
+            Route::get('/surat-pengantar/download', [App\Http\Controllers\Mahasiswa\MahasiswaSuratPengantarController::class, 'download'])
+                ->name('surat-pengantar.download');
+            Route::post('/surat-pengantar/upload', [App\Http\Controllers\Mahasiswa\MahasiswaSuratPengantarController::class, 'upload'])
+                ->name('surat-pengantar.upload');
+            Route::get('/surat-pengantar/{id}/cetak', [App\Http\Controllers\Mahasiswa\MahasiswaSuratPengantarController::class, 'cetak'])
+                ->name('surat-pengantar.cetak');
+        });
+
+        // =========================
+        // PROPOSAL (Step 4)
+        // =========================
+        Route::middleware('kp.step:4')->group(function () {
+            Route::get('/proposal', [MahasiswaProposalController::class, 'index'])
+                ->name('proposal');
+            Route::post('/proposal', [MahasiswaProposalController::class, 'store'])
+                ->name('proposal.store');
+            Route::put('/proposal/{proposal}', [MahasiswaProposalController::class, 'update'])
+                ->name('proposal.update');
+            Route::delete('/proposal/{proposal}', [MahasiswaProposalController::class, 'destroy'])
+                ->name('proposal.destroy');
+            Route::get('/proposal/download/{proposal}', [MahasiswaProposalController::class, 'download'])
+                ->name('proposal.download');
+            Route::post('/proposal/note', [MahasiswaProposalController::class, 'sendNote'])
+                ->name('proposal.note');
+        });
+
+        // =========================
+        // LOGBOOK (Step 6)
+        // =========================
+        Route::middleware('kp.step:6')->group(function () {
+            Route::get('/logbook', [MahasiswaLogbookController::class, 'index'])
+                ->name('logbook');
+            Route::get('/logbook/create', [MahasiswaLogbookController::class, 'create'])
+                ->name('logbook.create');
+            Route::post('/logbook', [MahasiswaLogbookController::class, 'store'])
+                ->name('logbook.store');
+            Route::get('/logbook/{logbook}/edit', [MahasiswaLogbookController::class, 'edit'])
+                ->name('logbook.edit');
+            Route::put('/logbook/{logbook}', [MahasiswaLogbookController::class, 'update'])
+                ->name('logbook.update');
+            Route::delete('/logbook/{logbook}', [MahasiswaLogbookController::class, 'destroy'])
+                ->name('logbook.destroy');
+        });
+
+        // =========================
+        // DOKUMEN LAPORAN AKHIR (Step 7)
+        // =========================
+        Route::middleware('kp.step:7')->group(function () {
+            Route::get('/dokumen-akhir', [App\Http\Controllers\Mahasiswa\MahasiswaDokumenAkhirController::class, 'index'])
+                ->name('dokumen-akhir.index');
+            Route::post('/dokumen-akhir', [App\Http\Controllers\Mahasiswa\MahasiswaDokumenAkhirController::class, 'store'])
+                ->name('dokumen-akhir.store');
+        });
+
+        // =========================
+        // SIDANG KERJA PRAKTIK (Step 8)
+        // =========================
+        Route::middleware('kp.step:8')->group(function () {
+            Route::get('/sidang', [App\Http\Controllers\Mahasiswa\MahasiswaSidangController::class, 'index'])
+                ->name('sidang');
+            Route::post('/sidang', [App\Http\Controllers\Mahasiswa\MahasiswaSidangController::class, 'store'])
+                ->name('sidang.store');
+        });
+
+        // =========================
+        // PENILAIAN & BERITA ACARA (Step 9)
+        // =========================
+        Route::middleware('kp.step:9')->group(function () {
+            Route::get('/penilaian', [App\Http\Controllers\Mahasiswa\MahasiswaPenilaianController::class, 'index'])
+                ->name('penilaian.index');
+            Route::get('/penilaian/cetak', [App\Http\Controllers\Mahasiswa\MahasiswaPenilaianController::class, 'cetak'])
+                ->name('penilaian.cetak');
+            Route::get('/penilaian/cetak-instansi', [App\Http\Controllers\Mahasiswa\MahasiswaPenilaianController::class, 'cetakInstansi'])
+                ->name('penilaian.cetak-instansi');
+            Route::get('/penilaian/cetak-dosen', [App\Http\Controllers\Mahasiswa\MahasiswaPenilaianController::class, 'cetakDosen'])
+                ->name('penilaian.cetak-dosen');
+
+            Route::get('/berita-acara', [App\Http\Controllers\Mahasiswa\MahasiswaBeritaAcaraController::class, 'index'])
+                ->name('berita-acara');
+            Route::post('/berita-acara', [App\Http\Controllers\Mahasiswa\MahasiswaBeritaAcaraController::class, 'store'])
+                ->name('berita-acara.store');
+            Route::get('/berita-acara/{id}/cetak', [App\Http\Controllers\Mahasiswa\MahasiswaBeritaAcaraController::class, 'cetak'])
+                ->name('berita-acara.cetak');
+        });
+    });
+
+// ============================================================
+// DOSEN ROUTES
+// ============================================================
+Route::middleware(['auth', 'role:dosen'])->prefix('dosen')->name('dosen.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\Dosen\DosenDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/monitoring', [App\Http\Controllers\Dosen\DosenMonitoringController::class, 'index'])->name('monitoring');
+    Route::get('/review-proposal', [App\Http\Controllers\Dosen\DosenProposalController::class, 'index'])->name('review');
+    Route::get('/review-proposal/{id}', [App\Http\Controllers\Dosen\DosenProposalController::class, 'review'])->name('review.show');
+    Route::put('/review-proposal/{id}', [App\Http\Controllers\Dosen\DosenProposalController::class, 'update'])->name('review.update');
+    Route::get('/logbook', [App\Http\Controllers\Dosen\DosenLogbookController::class, 'index'])->name('logbook');
+    Route::get('/logbook/{id}/review', [App\Http\Controllers\Dosen\DosenLogbookController::class, 'review'])->name('logbook.review');
+    Route::put('/logbook/{id}', [App\Http\Controllers\Dosen\DosenLogbookController::class, 'update'])->name('logbook.update');
+    Route::get('/laporan-akhir', [App\Http\Controllers\Dosen\DosenLaporanAkhirController::class, 'index'])->name('laporan-akhir.index');
+    Route::get('/laporan-akhir/{id}/download', [App\Http\Controllers\Dosen\DosenLaporanAkhirController::class, 'download'])->name('laporan-akhir.download');
+    Route::get('/penilaian', [App\Http\Controllers\Dosen\DosenPenilaianController::class, 'index'])->name('penilaian.index');
+    Route::get('/penilaian/{pendaftaran}/nilai', [App\Http\Controllers\Dosen\DosenPenilaianController::class, 'create'])->name('penilaian.create');
+    Route::get('/penilaian/{pendaftaran}/cetak', [App\Http\Controllers\Dosen\DosenPenilaianController::class, 'cetak'])->name('penilaian.cetak');
+    Route::post('/penilaian/{pendaftaran}', [App\Http\Controllers\Dosen\DosenPenilaianController::class, 'store'])->name('penilaian.store');
+});
+
+// ============================================================
+// TU (TATA USAHA) ROUTES
+// ============================================================
+Route::middleware(['auth', 'role:tu'])->prefix('tu')->name('tu.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\TU\TUDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/verifikasi-pendaftaran', [\App\Http\Controllers\TU\TUVerifikasiPendaftaranController::class, 'index'])->name('verifikasi-pendaftaran');
+    Route::post('/verifikasi-pendaftaran/{pendaftaran}/approve', [\App\Http\Controllers\TU\TUVerifikasiPendaftaranController::class, 'approve'])->name('verifikasi-pendaftaran.approve');
+    Route::post('/verifikasi-pendaftaran/{pendaftaran}/reject', [\App\Http\Controllers\TU\TUVerifikasiPendaftaranController::class, 'reject'])->name('verifikasi-pendaftaran.reject');
+    Route::put('/verifikasi-pendaftaran/{pendaftaran}', [\App\Http\Controllers\TU\TUVerifikasiPendaftaranController::class, 'update'])->name('verifikasi-pendaftaran.update');
+    Route::get('/generate-surat', [App\Http\Controllers\TU\TUSuratPengantarController::class, 'index'])->name('generate');
+    Route::post('/generate-surat/{id}/approve', [App\Http\Controllers\TU\TUSuratPengantarController::class, 'approve'])->name('generate.approve');
+    Route::post('/generate-surat/{id}/reject', [App\Http\Controllers\TU\TUSuratPengantarController::class, 'reject'])->name('generate.reject');
+    Route::get('/mahasiswa', [App\Http\Controllers\TU\TUMahasiswaController::class, 'index'])->name('mahasiswa');
+    Route::put('/mahasiswa/{id}/verifikasi', [App\Http\Controllers\TU\TUMahasiswaController::class, 'verifyUser'])->name('mahasiswa.verifikasi');
+    Route::get('/surat-balasan', [App\Http\Controllers\TU\TUSuratBalasanController::class, 'index'])->name('surat-balasan');
+    Route::get('/surat-balasan/{pendaftaran}', [App\Http\Controllers\TU\TUSuratBalasanController::class, 'show'])->name('surat-balasan.show');
+    Route::post('/surat-balasan/{pendaftaran}/approve', [App\Http\Controllers\TU\TUSuratBalasanController::class, 'approve'])->name('surat-balasan.approve');
+    Route::post('/surat-balasan/{pendaftaran}/revisi', [App\Http\Controllers\TU\TUSuratBalasanController::class, 'revisi'])->name('surat-balasan.revisi');
+    Route::get('/persetujuan-akun', [App\Http\Controllers\TU\TUPersetujuanAkunController::class, 'index'])->name('persetujuan-akun');
+    Route::post('/persetujuan-akun/{permohonan}/approve', [App\Http\Controllers\TU\TUPersetujuanAkunController::class, 'approve'])->name('persetujuan-akun.approve');
+    Route::post('/persetujuan-akun/{permohonan}/reject', [App\Http\Controllers\TU\TUPersetujuanAkunController::class, 'reject'])->name('persetujuan-akun.reject');
+    Route::post('/persetujuan-akun/{permohonan}/resend-email', [App\Http\Controllers\TU\TUPersetujuanAkunController::class, 'resendEmail'])->name('persetujuan-akun.resend-email');
+    Route::delete('/persetujuan-akun/{permohonan}', [App\Http\Controllers\TU\TUPersetujuanAkunController::class, 'destroy'])->name('persetujuan-akun.destroy');
+
+    // Master Mahasiswa (Import & Kelola Data Master)
+    Route::get('/master-mahasiswa', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'index'])->name('master-mahasiswa');
+    Route::post('/master-mahasiswa', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'store'])->name('master-mahasiswa.store');
+    Route::post('/master-mahasiswa/import', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'import'])->name('master-mahasiswa.import');
+    Route::get('/master-mahasiswa/template', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'downloadTemplate'])->name('master-mahasiswa.template');
+    Route::put('/master-mahasiswa/{masterMahasiswa}', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'update'])->name('master-mahasiswa.update');
+    Route::delete('/master-mahasiswa/{masterMahasiswa}', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'destroy'])->name('master-mahasiswa.destroy');
+    Route::delete('/master-mahasiswa-truncate', [\App\Http\Controllers\TU\TUMasterMahasiswaController::class, 'truncate'])->name('master-mahasiswa.truncate');
+
+    // Pembimbing Lapangan (Kelola Akun, Aktivasi, Reset Password, Kirim Ulang)
+    Route::get('/pembimbing-lapangan', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'index'])->name('pembimbing-lapangan.index');
+    Route::post('/pembimbing-lapangan', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'store'])->name('pembimbing-lapangan.store');
+    Route::put('/pembimbing-lapangan/{id}', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'update'])->name('pembimbing-lapangan.update');
+    Route::delete('/pembimbing-lapangan/{id}', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'destroy'])->name('pembimbing-lapangan.destroy');
+    Route::post('/pembimbing-lapangan/{user}/activate', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'activate'])->name('pembimbing-lapangan.activate');
+    Route::post('/pembimbing-lapangan/{user}/deactivate', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'deactivate'])->name('pembimbing-lapangan.deactivate');
+    Route::post('/pembimbing-lapangan/{user}/reset-password', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'resetPassword'])->name('pembimbing-lapangan.reset-password');
+    Route::post('/pembimbing-lapangan/{user}/resend', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'resend'])->name('pembimbing-lapangan.resend');
+    Route::get('/pembimbing-lapangan/{user}/preview-email', [\App\Http\Controllers\TU\TUPembimbingLapanganController::class, 'previewEmail'])->name('pembimbing-lapangan.preview-email');
+});
+
+// ============================================================
+// INSTANSI (EXTERNAL COMPANY) ROUTES
+// ============================================================
+
+Route::middleware(['auth', 'role:instansi'])->prefix('instansi')->name('instansi.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\Instansi\InstansiDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/monitoring', [App\Http\Controllers\Instansi\InstansiMonitoringController::class, 'index'])->name('monitoring');
+    Route::get('/pendaftaran', [App\Http\Controllers\Instansi\InstansiPendaftaranController::class, 'index'])->name('pendaftaran');
+    Route::put('/pendaftaran/{id}', [App\Http\Controllers\Instansi\InstansiPendaftaranController::class, 'update'])->name('pendaftaran.update');
+    Route::get('/proposal/{id}/download', [App\Http\Controllers\Instansi\InstansiPendaftaranController::class, 'downloadProposal'])->name('proposal.download');
+    Route::get('/evaluation', [App\Http\Controllers\Instansi\InstansiPenilaianController::class, 'index'])->name('evaluation');
+    Route::post('/evaluation/{id}', [App\Http\Controllers\Instansi\InstansiPenilaianController::class, 'store'])->name('evaluation.store');
+    Route::get('/logbook', [App\Http\Controllers\Instansi\InstansiLogbookController::class, 'index'])->name('logbook');
+    Route::get('/logbook/{id}/edit', [App\Http\Controllers\Instansi\InstansiLogbookController::class, 'edit'])->name('logbook.edit');
+    Route::put('/logbook/{id}', [App\Http\Controllers\Instansi\InstansiLogbookController::class, 'update'])->name('logbook.update');
+    Route::get('/certificates', fn() => Inertia::render('Instansi/Certificates'))->name('certificates');
+    Route::get('/settings', fn() => Inertia::render('Instansi/Settings'))->name('settings');
+});
+
+// ============================================================
+// PRODI (PROGRAM STUDI / COORDINATOR) ROUTES
+// ============================================================
+Route::middleware(['auth', 'role:prodi'])->prefix('prodi')->name('prodi.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\Prodi\ProdiDashboardController::class, 'index'])->name('dashboard');
+    
+    // Sidang KP (Req 9 & Req 11)
+    Route::get('/sidang', [App\Http\Controllers\Prodi\ProdiSidangController::class, 'index'])->name('sidang');
+    Route::post('/sidang/{id}/jadwalkan', [App\Http\Controllers\Prodi\ProdiSidangController::class, 'jadwalkan'])->name('sidang.jadwalkan');
+    Route::post('/sidang/{id}/selesai', [App\Http\Controllers\Prodi\ProdiSidangController::class, 'selesai'])->name('sidang.selesai');
+    Route::get('/mitra-instansi', [App\Http\Controllers\Prodi\ProdiSidangController::class, 'mitraInstansi'])->name('mitra-instansi');
+    Route::get('/arsip-nilai', [App\Http\Controllers\Prodi\ProdiSidangController::class, 'arsipNilai'])->name('arsip-nilai');
+    Route::get('/arsip-nilai/cetak', [App\Http\Controllers\Prodi\ProdiSidangController::class, 'cetakArsipNilai'])->name('arsip-nilai.cetak');
+
+    Route::get('/dosen', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'index'])->name('dosen.index');
+    Route::get('/dosen/template', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'downloadTemplate'])->name('dosen.template');
+    Route::post('/dosen/import', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'import'])->name('dosen.import');
+    Route::post('/dosen/{dosen}/kirim-kredensial', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'kirimKredensial'])->name('dosen.kirim-kredensial');
+    Route::get('/dosen/create', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'create'])->name('dosen.create');
+    Route::post('/dosen', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'store'])->name('dosen.store');
+    Route::get('/dosen/{id}/edit', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'edit'])->name('dosen.edit');
+    Route::put('/dosen/{id}', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'update'])->name('dosen.update');
+    Route::delete('/dosen/{id}', [App\Http\Controllers\Prodi\ProdiDosenController::class, 'destroy'])->name('dosen.destroy');
+
+    Route::get('/plotting', [App\Http\Controllers\Prodi\ProdiPlottingDosenController::class, 'index'])->name('plotting');
+    Route::post('/plotting', [App\Http\Controllers\Prodi\ProdiPlottingDosenController::class, 'store'])->name('plotting.store');
+    
+    Route::get('/plotting-pl', [App\Http\Controllers\Prodi\ProdiPembagianPLController::class, 'index'])->name('plotting-pl');
+    Route::post('/plotting-pl', [App\Http\Controllers\Prodi\ProdiPembagianPLController::class, 'store'])->name('plotting-pl.store');
+
+    Route::get('/mahasiswa', [\App\Http\Controllers\Prodi\ProdiMahasiswaController::class, 'index'])->name('mahasiswa');
+    
+    // Berita Acara
+    Route::get('/berita-acara', [App\Http\Controllers\Prodi\ProdiBeritaAcaraController::class, 'index'])->name('berita-acara.index');
+    Route::get('/berita-acara/cetak-rekap', [App\Http\Controllers\Prodi\ProdiBeritaAcaraController::class, 'cetakRekap'])->name('berita-acara.cetak-rekap');
+    Route::get('/berita-acara/{id}/preview', [App\Http\Controllers\Prodi\ProdiBeritaAcaraController::class, 'preview'])->name('berita-acara.preview');
+    Route::put('/berita-acara/{id}', [App\Http\Controllers\Prodi\ProdiBeritaAcaraController::class, 'update'])->name('berita-acara.update');
+    Route::post('/berita-acara/{id}/approve', [App\Http\Controllers\Prodi\ProdiBeritaAcaraController::class, 'approve'])->name('berita-acara.approve');
+    
+    // Daftar Instansi
+    Route::resource('instansi', App\Http\Controllers\Prodi\ProdiInstansiController::class)->except(['show']);
+
+    // Pembimbing Lapangan
+    Route::resource('pembimbing-lapangan', App\Http\Controllers\Prodi\ProdiPembimbingLapanganController::class)->except(['show']);
+});
+
+// ============================================================
+// SUPER USER / SUPER ADMIN ROUTES
+// ============================================================
+Route::middleware(['auth', 'role:superadmin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard');
+
+    // Manajemen Pegawai (Dosen & Staff Bersatu)
+    Route::post('/pegawai', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'storePegawai'])->name('pegawai.store');
+    Route::put('/pegawai/{id}', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'updatePegawai'])->name('pegawai.update');
+
+    // Manajemen Dosen (Legacy compatibility)
+    Route::post('/dosen', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'storeDosen'])->name('dosen.store');
+    Route::put('/dosen/{id}', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'updateDosen'])->name('dosen.update');
+
+    // Manajemen Staff (Legacy compatibility)
+    Route::post('/staff', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'storeStaff'])->name('staff.store');
+    Route::put('/staff/{id}', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'updateStaff'])->name('staff.update');
+
+    // Hapus Pengguna (Protected Root)
+    Route::delete('/users/{id}', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'destroyUser'])->name('users.destroy');
+
+    // Penetapan Peran & Tugas Akun Baru SSO
+    Route::post('/users/{id}/assign-role', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'assignRole'])->name('users.assign-role');
+
+    // Penetapan Jabatan Dekan & Koordinator Program Studi (Single Switcher)
+    Route::post('/set-dekan', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'setDekan'])->name('set-dekan');
+    Route::post('/set-kaprodi', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'setKaprodi'])->name('set-kaprodi');
+
+    // Import Excel & Download Template Sederhana
+    Route::post('/import-users', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'importUsers'])->name('import-users');
+    Route::get('/download-template', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'downloadTemplate'])->name('download-template');
+
+    // Impersonate / Login As (Troubleshooting)
+    Route::post('/impersonate/{id}', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'impersonate'])->name('impersonate');
+});
+
+// Route kembali dari mode Impersonate (Bisa diakses saat sedang login impersonated)
+Route::middleware('auth')->get('/admin/impersonate/leave', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'leaveImpersonate'])->name('admin.impersonate.leave');
+
+// ============================================================
+// PROFILE ROUTES (shared, from Breeze)
+// ============================================================
+Route::middleware('auth')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/auth.php';

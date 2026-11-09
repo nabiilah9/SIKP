@@ -1,0 +1,298 @@
+import InstansiLayout from '@/Layouts/InstansiLayout';
+import { useState } from 'react';
+import { router, useForm, Link } from '@inertiajs/react';
+import { CheckCircle2, XCircle, FileText, Download, Building2, X, ExternalLink } from 'lucide-react';
+import Modal from '@/Components/Modal';
+
+interface Mahasiswa {
+  name: string;
+  nim: string;
+  program_studi?: {
+    nama: string;
+  };
+}
+
+interface SuratPengantar {
+  nomor_surat: string;
+  path_file: string;
+}
+
+interface ProposalInfo {
+  id: number;
+  judul: string;
+  abstrak?: string;
+  status: string;
+  versi: number;
+  path_file: string;
+  submitted_at?: string;
+}
+
+interface Pendaftaran {
+  id: number;
+  mahasiswa: Mahasiswa;
+  surat_pengantar: SuratPengantar | null;
+  proposal: ProposalInfo | null;
+  status: string;
+  tanggal_pengajuan: string;
+  tanggal_mulai?: string;
+  tanggal_selesai?: string;
+}
+
+interface Props {
+  pendaftarans: Pendaftaran[];
+  error?: string;
+}
+
+export default function PendaftaranScreen({ pendaftarans, error }: Props) {
+  const [selectedPendaftaran, setSelectedPendaftaran] = useState<Pendaftaran | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [actionType, setActionType] = useState<'diterima_instansi' | 'ditolak_instansi'>('diterima_instansi');
+
+  const { put, processing, reset } = useForm<{ status: string }>({
+    status: '',
+  });
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] gap-4">
+        <Building2 size={64} className="text-error" />
+        <h2 className="text-xl font-display font-semibold text-on-surface">Akses Ditolak</h2>
+        <p className="text-secondary text-center max-w-md">{error}</p>
+      </div>
+    );
+  }
+
+  const openConfirmModal = (pendaftaran: Pendaftaran, action: 'diterima_instansi' | 'ditolak_instansi') => {
+    setSelectedPendaftaran(pendaftaran);
+    setActionType(action);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => {
+      setSelectedPendaftaran(null);
+      reset();
+    }, 200);
+  };
+
+  const submitAction = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPendaftaran) return;
+
+    router.put(route('instansi.pendaftaran.update', selectedPendaftaran.id), { status: actionType }, {
+      onSuccess: () => {
+        closeModal();
+      },
+    });
+  };
+
+  const formatStatus = (status: string) => {
+    switch (status) {
+      case 'surat_terbit': return { label: 'Menunggu Respons', color: 'bg-error-container text-error border-error-container' };
+      case 'diterima_instansi': return { label: 'Diterima', color: 'bg-primary-container text-on-primary-container border-primary-container' };
+      case 'ditolak_instansi': return { label: 'Ditolak', color: 'bg-tertiary-container text-on-tertiary-container border-tertiary-container' };
+      default: return { label: status.replace(/_/g, ' ').toUpperCase(), color: 'bg-surface-variant text-on-surface-variant border-outline-variant' };
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div>
+        <h1 className="text-2xl md:text-3xl font-display font-semibold text-on-surface">Pendaftaran Mahasiswa</h1>
+        <p className="text-sm text-on-surface-variant mt-1">Kelola persetujuan mahasiswa yang melamar magang/kerja praktik di instansi Anda.</p>
+      </div>
+
+      {/* Kartu Blanko Resmi Surat Kesediaan Menerima KP (Form KP-2) */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-[#00288e] flex items-center justify-center shrink-0">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">Format Resmi Surat Kesediaan Menerima KP (Form KP-2)</h3>
+              <p className="text-[11px] text-slate-500">
+                Gunakan format baku resmi UTM ini untuk menerbitkan surat balasan/penerimaan magang resmi kepada mahasiswa dan program studi.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/panduan"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#00288e] hover:underline shrink-0"
+          >
+            <span>Semua Dokumen</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        <div className="pt-3">
+          <a
+            href="/dokumen/lampiran/Lampiran_02_Kesediaan_Menerima_KP_Form_KP-2.pdf"
+            download
+            className="flex items-center justify-between p-3 rounded-lg border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 transition group cursor-pointer max-w-xl"
+          >
+            <div className="min-w-0 pr-2">
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">Form KP-2 (Lampiran 02)</span>
+              <p className="text-xs font-semibold text-slate-900 mt-1 truncate">Format Kesediaan Menerima KP</p>
+              <p className="text-[11px] text-slate-500 truncate">Surat balasan resmi penerimaan magang lengkap dengan nama pembimbing lapangan</p>
+            </div>
+            <Download className="w-4 h-4 text-[#00288e] shrink-0 group-hover:translate-y-0.5 transition-transform" />
+          </a>
+        </div>
+      </div>
+
+      <div className="bg-surface-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col mt-2">
+        <div className="overflow-x-auto">
+          {pendaftarans.length === 0 ? (
+            <div className="p-12 text-center flex flex-col items-center">
+              <FileText size={48} className="text-outline mb-4 opacity-50" />
+              <p className="font-body-lg text-on-surface">Belum ada pendaftar</p>
+              <p className="font-body-md text-secondary mt-1">Belum ada mahasiswa yang memilih instansi Anda sebagai tempat magang.</p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-surface-container-lowest border-b border-outline-variant text-on-surface-variant text-sm font-medium">
+                  <th className="py-4 px-5 w-1/5">Profil Mahasiswa</th>
+                  <th className="py-4 px-5">Surat Pengantar</th>
+                  <th className="py-4 px-5">Proposal KP</th>
+                  <th className="py-4 px-5">Status Terkini</th>
+                  <th className="py-4 px-5 text-center">Keputusan Instansi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant">
+                {pendaftarans.map((p) => {
+                  const statusUi = formatStatus(p.status);
+                  
+                  return (
+                    <tr key={p.id} className="hover:bg-surface-container-lowest/50 transition-colors">
+                      <td className="py-4 px-5 align-top">
+                        <div className="font-medium text-on-surface">{p.mahasiswa.name}</div>
+                        <div className="text-sm text-secondary font-mono">{p.mahasiswa.nim}</div>
+                        {p.mahasiswa.program_studi && (
+                          <div className="text-xs text-on-surface-variant mt-1">{p.mahasiswa.program_studi.nama}</div>
+                        )}
+                      </td>
+                      <td className="py-4 px-5 align-top">
+                        {p.surat_pengantar ? (
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-xs font-semibold text-on-surface font-mono">{p.surat_pengantar.nomor_surat}</span>
+                            <a 
+                              href={`/storage/${p.surat_pengantar.path_file}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline w-max"
+                            >
+                              <Download size={13} /> Unduh Surat
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-outline italic">Dokumen belum terbit</span>
+                        )}
+                        <div className="text-[11px] text-secondary mt-2">Diajukan: {p.tanggal_pengajuan}</div>
+                      </td>
+                      <td className="py-4 px-5 align-top">
+                        {p.proposal ? (
+                          <div className="flex flex-col gap-1.5 max-w-xs">
+                            <span className="text-xs font-semibold text-on-surface line-clamp-2" title={p.proposal.judul}>
+                              {p.proposal.judul}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-secondary font-mono">v{p.proposal.versi}</span>
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                p.proposal.status === 'disetujui' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                              }`}>
+                                {p.proposal.status.toUpperCase()}
+                              </span>
+                            </div>
+                            <a 
+                              href={route('instansi.proposal.download', p.proposal.id)}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-900 hover:underline w-max mt-0.5"
+                            >
+                              <Download size={13} /> Unduh Proposal
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-secondary italic">Proposal belum diunggah</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-5 align-top">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${statusUi.color}`}>
+                          {statusUi.label}
+                        </span>
+                      </td>
+                      <td className="py-4 px-5 align-top text-center">
+                        {p.status === 'surat_terbit' ? (
+                          <div className="flex justify-center gap-2">
+                            <button 
+                              onClick={() => openConfirmModal(p, 'diterima_instansi')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-container text-on-primary-container border border-primary-container hover:border-primary rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <CheckCircle2 size={16} /> Terima
+                            </button>
+                            <button 
+                              onClick={() => openConfirmModal(p, 'ditolak_instansi')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-error-container text-on-error-container border border-error-container hover:border-error rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <XCircle size={16} /> Tolak
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-secondary italic">Sudah direspons</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      <Modal show={isModalOpen} onClose={closeModal} maxWidth="md">
+        <form onSubmit={submitAction} className="p-6">
+          <div className="flex justify-between items-start mb-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mb-4 ${actionType === 'diterima_instansi' ? 'bg-primary-container text-primary' : 'bg-error-container text-error'}`}>
+              {actionType === 'diterima_instansi' ? <CheckCircle2 size={24} /> : <XCircle size={24} />}
+            </div>
+            <button type="button" onClick={closeModal} className="text-on-surface-variant hover:bg-surface-container p-1.5 rounded-lg transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <h2 className="text-xl font-display font-semibold text-on-surface mb-2">
+            Konfirmasi Keputusan
+          </h2>
+          
+          <p className="text-sm text-on-surface-variant mb-6">
+            Apakah Anda yakin ingin <strong className={actionType === 'diterima_instansi' ? 'text-primary' : 'text-error'}>{actionType === 'diterima_instansi' ? 'MENERIMA' : 'MENOLAK'}</strong> permohonan magang dari mahasiswa <strong>{selectedPendaftaran?.mahasiswa.name}</strong>?
+            Keputusan ini akan diteruskan ke pihak Universitas dan Mahasiswa yang bersangkutan.
+          </p>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="px-4 py-2 border border-outline text-secondary text-sm font-medium rounded-lg hover:bg-surface-container transition-colors"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              disabled={processing}
+              className={`px-6 py-2 text-on-primary text-sm font-medium rounded-lg disabled:opacity-50 transition-colors shadow-sm ${
+                actionType === 'diterima_instansi' ? 'bg-primary hover:bg-primary/90' : 'bg-error hover:bg-error/90'
+              }`}
+            >
+              {processing ? 'Menyimpan...' : 'Ya, Konfirmasi'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+PendaftaranScreen.layout = (page: React.ReactNode) => <InstansiLayout>{page}</InstansiLayout>;

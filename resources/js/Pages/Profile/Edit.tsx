@@ -1,0 +1,316 @@
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import MahasiswaLayout from '@/Layouts/MahasiswaLayout';
+import DosenLayout from '@/Layouts/DosenLayout';
+import InstansiLayout from '@/Layouts/InstansiLayout';
+import TULayout from '@/Layouts/TULayout';
+import ProdiLayout from '@/Layouts/ProdiLayout';
+import AdminLayout from '@/Layouts/AdminLayout';
+import { PageProps } from '@/types';
+import { Head, usePage } from '@inertiajs/react';
+import DeleteUserForm from './Partials/DeleteUserForm';
+import UpdatePasswordForm from './Partials/UpdatePasswordForm';
+import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm';
+import { ComponentType, PropsWithChildren } from 'react';
+import { User, Shield, ShieldAlert, Camera, IdCard, Building2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { getAvatarUrl } from '@/utils/avatar';
+import { useTranslation } from '@/hooks/useTranslation';
+
+export default function Edit({
+    mustVerifyEmail,
+    status,
+    from,
+}: PageProps<{ mustVerifyEmail: boolean; status?: string; from?: string }>) {
+    const { t } = useTranslation();
+    const { auth } = usePage<PageProps>().props;
+    const user = auth.user;
+
+    const avatarUrl = getAvatarUrl((user as any).avatar || (user as any).foto);
+    const isGoogleUser = Boolean((user as any).google_id || (user.email && (user.email.endsWith('@student.trunojoyo.ac.id') || user.email.endsWith('@trunojoyo.ac.id'))));
+    const hasSetPassword = Boolean((user as any).has_set_password);
+
+    // Identifikasi peran aktif dan wewenang superadmin / root
+    const activeRole = (user as any).active_role;
+    const isRoot = Boolean((user as any).is_root);
+    const rolesAssignment: string[] = (user as any).roles_assignment || [];
+    const isSuperAdmin = isRoot || Boolean((user as any).is_superadmin) || activeRole === 'superadmin' || (user.role as string) === 'superadmin' || rolesAssignment.includes('superadmin');
+
+    // Tentukan peran efektif berdasarkan query 'from' atau peran aktif
+    let effectiveRole: string = from || activeRole || user.role;
+
+    if (from === 'admin' || isRoot || activeRole === 'superadmin' || (isSuperAdmin && (!from || from === 'admin'))) {
+        effectiveRole = 'superadmin';
+    }
+
+    let Layout: ComponentType<PropsWithChildren<any>> = AuthenticatedLayout;
+    let roleLabel: string = user.role;
+
+    switch (effectiveRole) {
+        case 'superadmin':
+        case 'admin':
+            Layout = AdminLayout;
+            roleLabel = isRoot ? 'Root Administrator' : 'Super Administrator';
+            break;
+        case 'prodi':
+            Layout = ProdiLayout;
+            roleLabel = 'Koordinator KP';
+            break;
+        case 'tu':
+            Layout = TULayout;
+            roleLabel = 'Tata Usaha';
+            break;
+        case 'dosen':
+            Layout = DosenLayout;
+            roleLabel = 'Dosen Pembimbing';
+            break;
+        case 'instansi':
+            Layout = InstansiLayout;
+            roleLabel = 'Pembimbing Lapangan';
+            break;
+        case 'mahasiswa':
+            Layout = MahasiswaLayout;
+            roleLabel = 'Mahasiswa';
+            break;
+        default:
+            if (user.role === 'tu') {
+                Layout = TULayout;
+                roleLabel = 'Tata Usaha';
+            } else if (user.role === 'dosen') {
+                Layout = DosenLayout;
+                roleLabel = 'Dosen Pembimbing';
+            } else if (user.role === 'prodi') {
+                Layout = ProdiLayout;
+                roleLabel = 'Koordinator KP';
+            } else if (user.role === 'instansi') {
+                Layout = InstansiLayout;
+                roleLabel = 'Pembimbing Lapangan';
+            } else if (user.role === 'mahasiswa') {
+                Layout = MahasiswaLayout;
+                roleLabel = 'Mahasiswa';
+            }
+            break;
+    }
+
+    const content = (
+        <>
+            <Head title={t('profile.title', undefined, 'Profil Saya')} />
+
+            <div className="py-6">
+                <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+                    {/* Profile Header (Clean authentic academic style) */}
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 sm:p-7 shadow-xs mb-6 flex flex-col sm:flex-row items-center gap-6">
+                        {/* Avatar */}
+                        <div className="group relative shrink-0">
+                            <div className="h-24 w-24 overflow-hidden rounded-xl border-2 border-slate-200 bg-slate-50 flex items-center justify-center">
+                                {avatarUrl ? (
+                                    <img
+                                        src={avatarUrl}
+                                        alt="Avatar"
+                                        className="h-full w-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                    />
+                                ) : (
+                                    <User className="h-10 w-10 text-slate-400" />
+                                )}
+                            </div>
+                        </div>
+
+                        {/* User Info */}
+                        <div className="flex-1 text-center sm:text-left">
+                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                {user.name}
+                            </h1>
+                            <p className="mt-0.5 text-sm text-slate-600">{user.email}</p>
+                            <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                {isSuperAdmin ? (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                                        <ShieldAlert className="h-3.5 w-3.5 text-indigo-600" />
+                                        {roleLabel}
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-semibold text-[#00288e]">
+                                        <Shield className="h-3.5 w-3.5" />
+                                        {roleLabel}
+                                    </span>
+                                )}
+                                {(user.role === 'dosen' || user.role === 'prodi' || user.role === 'tu' || isSuperAdmin) && user.nip && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                        <IdCard className="h-3.5 w-3.5 text-slate-500" />
+                                        NIP: {user.nip}
+                                    </span>
+                                )}
+                                {user.role === 'mahasiswa' && user.nim && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                        <IdCard className="h-3.5 w-3.5 text-slate-500" />
+                                        NIM: {user.nim}
+                                    </span>
+                                )}
+                                {user.role === 'instansi' && (user as any).pembimbing_lapangan?.instansi?.nama && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                                        <Building2 className="h-3.5 w-3.5 text-slate-500" />
+                                        {(user as any).pembimbing_lapangan.instansi.nama}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Google SSO Trunojoyo Notice */}
+                    {isGoogleUser && (
+                        <div className={`mb-8 overflow-hidden rounded-xl border transition-all shadow-xs ${
+                            !hasSetPassword 
+                                ? 'border-amber-300 bg-amber-50/90 text-amber-900 ring-1 ring-amber-200' 
+                                : 'border-blue-200 bg-blue-50/80 text-blue-900'
+                        }`}>
+                            <div className="p-5 sm:p-6 flex flex-col sm:flex-row items-start gap-4">
+                                <div className={`p-2.5 rounded-xl shrink-0 ${!hasSetPassword ? 'bg-amber-200/80 text-amber-800' : 'bg-blue-100 text-[#00288e]'}`}>
+                                    {!hasSetPassword ? <AlertTriangle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
+                                </div>
+                                <div className="flex-1 space-y-1.5">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                                            {!hasSetPassword 
+                                                ? t('profile.google_warning_title', undefined, 'Peringatan Akun Google SSO Trunojoyo')
+                                                : t('profile.google_active_title', undefined, 'Akun Google SSO Trunojoyo Terhubung')}
+                                        </h3>
+                                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                                            !hasSetPassword 
+                                                ? 'bg-amber-500 text-white shadow-xs' 
+                                                : 'bg-[#00288e] text-white shadow-xs'
+                                        }`}>
+                                            {!hasSetPassword 
+                                                ? t('profile.google_warning_badge', undefined, 'Perlu Atur Kata Sandi') 
+                                                : 'SSO Aktif'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm leading-relaxed text-slate-700">
+                                        {!hasSetPassword 
+                                            ? t('profile.google_warning_desc', { email: user.email }, `Akun Anda saat ini masuk menggunakan Single Sign-On (SSO) Google Kampus UTM (${user.email}) dan belum memiliki kata sandi lokal. Sangat disarankan untuk mengatur kata sandi akun pada formulir di bawah ini agar Anda tetap dapat login langsung dengan email & kata sandi apabila layanan Google SSO sedang mengalami kendala.`)
+                                            : t('profile.google_active_desc', { email: user.email }, `Akun Anda terhubung dengan Google SSO Kampus (${user.email}). Kata sandi lokal akun Anda sudah aktif dan dapat digunakan untuk masuk secara langsung.`)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Content Grid */}
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        {/* Left Column - Profile Info & Avatar */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Update Profile */}
+                            <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-outline-variant/40 transition-shadow hover:shadow-md">
+                                <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                                            <User className="h-4.5 w-4.5 text-primary" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-base font-semibold text-on-surface">Informasi Profil</h2>
+                                            <p className="text-xs text-secondary">Perbarui foto, nama, dan email Anda</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-6">
+                                    <UpdateProfileInformationForm
+                                        mustVerifyEmail={mustVerifyEmail}
+                                        status={status}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Update Password */}
+                            <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-outline-variant/40 transition-shadow hover:shadow-md">
+                                <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-tertiary/10">
+                                            <Shield className="h-4.5 w-4.5 text-tertiary" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-base font-semibold text-on-surface">Keamanan Akun</h2>
+                                            <p className="text-xs text-secondary">Kelola kata sandi Anda</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-6">
+                                    <UpdatePasswordForm />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column - Role Info & Danger Zone */}
+                        <div className="space-y-6">
+                            {/* Role Specific Info */}
+                            {user.role && (
+                                <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-outline-variant/40">
+                                    <div className="border-b border-outline-variant/30 bg-surface-container-low/50 px-6 py-4">
+                                        <h3 className="text-sm font-semibold text-on-surface">Detail Akun</h3>
+                                    </div>
+                                    <div className="p-6 space-y-4">
+                                        <InfoRow label="Peran" value={roleLabel} />
+                                        {(user.role === 'dosen' || user.role === 'prodi' || user.role === 'tu') && (
+                                            <InfoRow label="NIP" value={user.nip || '-'} />
+                                        )}
+                                        {user.role === 'mahasiswa' && (
+                                            <>
+                                                <InfoRow label="NIM" value={user.nim || '-'} />
+                                                {(user as any).semester && <InfoRow label="Semester" value={(user as any).semester} />}
+                                                {(user as any).ipk && <InfoRow label="IPK" value={(user as any).ipk} />}
+                                            </>
+                                        )}
+                                        {user.role === 'instansi' && (
+                                            <>
+                                                <InfoRow label="Pembimbing" value={(user as any).pembimbing_lapangan?.nama ?? '-'} />
+                                                <InfoRow label="Instansi" value={(user as any).pembimbing_lapangan?.instansi?.nama ?? '-'} />
+                                            </>
+                                        )}
+                                        <InfoRow
+                                            label="Bergabung"
+                                            value={new Date(user.created_at ?? '').toLocaleDateString('id-ID', {
+                                                year: 'numeric',
+                                                month: 'long',
+                                                day: 'numeric',
+                                            })}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Danger Zone (Disembunyikan khusus untuk Mahasiswa & Root Administrator) */}
+                            {user.role !== 'mahasiswa' && !isRoot && (
+                                <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-error/20">
+                                    <div className="p-6">
+                                        <DeleteUserForm />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+
+    if (Layout === AuthenticatedLayout) {
+        return (
+            <AuthenticatedLayout
+                header={
+                    <h2 className="text-xl font-semibold leading-tight text-gray-800">
+                        Profil Saya
+                    </h2>
+                }
+            >
+                {content}
+            </AuthenticatedLayout>
+        );
+    }
+
+    return <Layout>{content}</Layout>;
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between py-2 border-b border-outline-variant/20 last:border-0">
+            <span className="text-xs font-medium text-secondary">{label}</span>
+            <span className="text-sm font-semibold text-on-surface text-right max-w-[60%] truncate">{value}</span>
+        </div>
+    );
+}

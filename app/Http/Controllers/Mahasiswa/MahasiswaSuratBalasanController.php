@@ -1,0 +1,150 @@
+<?php
+
+namespace App\Http\Controllers\Mahasiswa;
+
+use App\Http\Controllers\Controller;
+use App\Models\Pendaftaran;
+use App\Models\SuratBalasan;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class MahasiswaSuratBalasanController extends Controller
+{
+    public function index(Request $request): Response
+    {
+        $pendaftaran = Pendaftaran::where(
+            'mahasiswa_id',
+            $request->user()->id
+        )
+        ->with(['suratBalasan', 'instansi'])
+        ->latest()
+        ->first();
+
+        return Inertia::render('Mahasiswa/SuratBalasan/Index', [
+            'pendaftaran' => $pendaftaran ? [
+                'id' => $pendaftaran->id,
+                'status' => $pendaftaran->status,
+                'catatan_tu' => $pendaftaran->catatan_tu,
+                'instansi' => [
+                    'nama' => $pendaftaran->instansi?->nama ?? $pendaftaran->tempat_kp ?? 'Belum ditentukan',
+                    'alamat' => $pendaftaran->instansi?->alamat ?? $pendaftaran->alamat_kantor ?? null,
+                ],
+                'surat_balasan' => $pendaftaran->suratBalasan ? [
+                    'nomor_surat' => $pendaftaran->suratBalasan->nomor_surat,
+                    'tanggal_surat' => $pendaftaran->suratBalasan->tanggal_surat?->format('Y-m-d'),
+                    'path_file' => $pendaftaran->suratBalasan->path_file,
+                ] : null,
+            ] : null,
+        ]);
+    }
+
+    public function show(Request $request): Response
+    {
+        $pendaftaran = Pendaftaran::where(
+            'mahasiswa_id',
+            $request->user()->id
+        )
+        ->with(['suratBalasan', 'instansi'])
+        ->latest()
+        ->first();
+
+        return Inertia::render('Mahasiswa/SuratBalasan/Show', [
+            'pendaftaran' => $pendaftaran ? [
+                'id' => $pendaftaran->id,
+                'status' => $pendaftaran->status,
+                'tanggal_mulai' => $pendaftaran->tanggal_mulai?->format('Y-m-d'),
+                'tanggal_selesai' => $pendaftaran->tanggal_selesai?->format('Y-m-d'),
+                'instansi' => [
+                    'nama' => $pendaftaran->instansi?->nama ?? $pendaftaran->tempat_kp ?? 'Belum ditentukan',
+                    'alamat' => $pendaftaran->instansi?->alamat ?? $pendaftaran->alamat_kantor ?? null,
+                ],
+            ] : null,
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'nomor_surat' => 'required|string|max:255',
+            'tanggal_surat' => 'required|date',
+            'file' => 'required|mimes:pdf|max:2048',
+        ]);
+
+        $pendaftaran = Pendaftaran::where(
+            'mahasiswa_id',
+            $request->user()->id
+        )->latest()->first();
+
+        if (!$pendaftaran) {
+            return back()->with('error', 'Pendaftaran tidak ditemukan.');
+        }
+
+        $path = $request->file('file')
+            ->store('surat-balasan', 'public');
+
+        SuratBalasan::updateOrCreate(
+            [
+                'pendaftaran_id' => $pendaftaran->id
+            ],
+            [
+                'nomor_surat' => $validated['nomor_surat'],
+                'tanggal_surat' => $validated['tanggal_surat'],
+                'path_file' => $path,
+            ]
+        );
+
+        $pendaftaran->update([
+            'status' => 'verifikasi_surat_balasan'
+        ]);
+
+        \App\Models\Notifikasi::create([
+            'user_id' => $request->user()->id,
+            'judul' => 'Surat Balasan Berhasil Diunggah',
+            'pesan' => 'Surat balasan instansi berhasil diunggah dan sedang menunggu verifikasi Tata Usaha.',
+            'tipe' => 'sukses',
+            'priority' => 'normal',
+            'link' => '/mahasiswa/status-pengajuan',
+        ]);
+
+        $tuUsers = \App\Models\User::where('role', 'tu')->get();
+        foreach ($tuUsers as $tu) {
+            \App\Models\Notifikasi::create([
+                'user_id' => $tu->id,
+                'judul' => 'Verifikasi Surat Balasan Mahasiswa',
+                'pesan' => "Mahasiswa {$request->user()->name} ({$request->user()->nim}) telah mengunggah surat balasan instansi untuk diverifikasi.",
+                'tipe' => 'info',
+                'priority' => 'high',
+                'link' => '/tu/surat-balasan',
+            ]);
+        }
+
+        return back()->with(
+            'success',
+            'Surat balasan berhasil diupload.'
+        );
+    }
+
+    public function download(Request $request)
+    {
+        $pendaftaran = Pendaftaran::where(
+            'mahasiswa_id',
+            $request->user()->id
+        )
+        ->with('suratBalasan')
+        ->latest()
+        ->first();
+
+        if (
+            !$pendaftaran ||
+            !$pendaftaran->suratBalasan
+        ) {
+            abort(404);
+        }
+
+        return Storage::disk('public')->download(
+            $pendaftaran->suratBalasan->path_file
+        );
+    }
+}

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="{{ asset('assets/img/utm.png') }}">
+    <title>Cetak Surat Pengantar</title>
+    <style>
+        @media print {
+            @page { margin: 0; }
+            body { margin: 1.5cm; -webkit-print-color-adjust: exact; }
+        }
+    </style>
+</head>
+<body onload="window.print()">
+    <div>
+        <table align="center" style="padding-left: 0%;padding-right: 0%;max-width:max-content;">
+            <tr>
+                <!-- Ganti asset path jika perlu, sesuaikan letak utm.png -->
+                <td><img src="{{ asset('assets/img/utm.png') }}" style="width: 100%; max-width: 130px; height: auto;"></td>
+                <td style="width: 25px;"></td>
+                <td style="text-align: center;">KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, <br> DAN TEKNOLOGI <br> UNIVERSITAS TRUNOJOYO MADURA <br> <b>FAKULTAS TEKNIK</b> <br> Jl. Raya Telang, PO.Box. 2 Kamal, Bangkalan - Madura <br> Telp : (031) 3011146, Fax. (031) 3011506 <br> Laman : www.trunojoyo.ac.id </td>
+                <td style="width: 25px;"></td>
+            </tr>
+            <tr>
+                <td colspan="4"><hr size="3px" color="black"></td>
+            </tr>
+        </table>
+        <table align="center" style="padding-left: 0%;padding-right: 0%;max-width:max-content;">
+            <tr>
+                <td>Nomor</td>
+                <td>:</td>
+                <td>B/3284/UN46.3.4/KP.01.06/{{ date('Y') }}</td>
+                <td style="width: 150px;"></td>
+                <td style="width: 130px; text-align: center;">{{ \Carbon\Carbon::parse($data->created_at ?? now())->translatedFormat('d F Y') }}</td>
+                <td style="width: 15px;"></td>
+            </tr>
+            <tr>
+                <td>Perihal</td>
+                <td>:</td>
+                <td>Permohonan Izin Kerja Praktek</td>
+                <td style="width: 150px;"></td>
+            </tr>
+            <tr style="height: 40px;">
+                <td><p></p></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="6">Yth. Kepala {{ $nama_instansi }}</td>
+            </tr>
+            <tr>
+                <td style="width: 100px;" colspan="4">{{ $alamat_instansi }}</td>
+            </tr>
+            <tr style="height: 60px;">
+                <td><p></p></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="6" style="width: 160px; text-align: justify;">Dalam rangka memperkenalkan mahasiswa pada dunia kerja sesuai bidang masing-masing  dan untuk memenuhi syarat sebelum mahasiswa mengerjakan Tugas Akhir/Skripsi, maka sesuai ketentuan kurikulum mahasiswa diwajibkan melaksanakan kerja Praktek.</td>
+            </tr>
+            <tr>
+                <td><p></p></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="6" style="width: 160px;  text-align: justify;">Guna memperlancar kegiatan Kerja Praktek tersebut, kami mohon perkenan Bapak/Ibu untuk memberikan izin kepada mahasiswa kami untuk dapat melaksanakan kegiatan Kerja Praktek pada {{ $nama_instansi }} tersebut sejak tanggal {{ \Carbon\Carbon::parse($tanggal_mulai)->translatedFormat('d F Y') }} s.d. {{ \Carbon\Carbon::parse($tanggal_selesai)->translatedFormat('d F Y') }}.</td>
+            </tr>
+            <tr>
+                <td><p></p></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="6">Adapun mahasiswa tersebut adalah :</td>
+            </tr>
+            <tr style="height: 15px;">
+                <td></td>
+            </tr>
+        </table>
+        <table border="1" align="center" style="border-collapse: collapse;">
+            <tr>
+                <th>No.</th>
+                <th style="width: 170px;">Nama</th>
+                <th style="width: 170px;">NPM</th>
+                <th style="width: 170px;">Program Studi</th>
+            </tr>
+            <tr>
+                <td align="center">1.</td>
+                <td>{{ $data->mahasiswa->name ?? 'Nama Mahasiswa' }}</td>
+                <td align="center">{{ $data->mahasiswa->nim ?? 'NIM' }}</td>
+                <td align="center">Teknik Informatika</td>
+            </tr>
+        </table>
+        <table align="center">
+            <tr>
+                <td><p></p></td>
+            </tr>
+            <tr>
+                <td style="width: 590px;">Demikian, atas perhatian dan bantuannya kami ucapkan terima kasih.</td>
+            </tr>
+            <tr style="height: 30px;">
+                <td></td>
+            </tr>
+        </table>
+        @php
+            $sigService = app(\App\Services\DigitalSignatureService::class);
+            $sigData = $sigService->getSignatureBlock('dekan', $surat->verification_id);
+            $dekanNama = $surat->ditandatangani_oleh ?? $sigData['nama'];
+            $dekanNip = $surat->nip_penandatangan ?? $sigData['nip'];
+            $hasTtdFile = $sigData['ttd_exists'];
+            $ttdPath = $sigData['ttd_path'];
+            $vId = $surat->verification_id ?? $sigData['verification_id'];
+        @endphp
+
+        <table align="center" style="width: 590px;">
+            <tr>
+                <td style="width: 320px;"></td>
+                <td style="text-align: left;">Dekan,</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td style="text-align: left; height: 75px; vertical-align: middle;">
+                    @if($hasTtdFile)
+                        <img src="{{ asset($ttdPath) }}" alt="Tanda Tangan Dekan" style="max-height: 70px; width: auto;">
+                    @else
+                        <div style="font-family: Arial, sans-serif; font-size: 10px; color: #0f766e; border: 1px dashed #0d9488; padding: 6px 10px; border-radius: 6px; display: inline-block; background-color: #f0fdfa;">
+                            <b style="text-transform: uppercase;">Ditandatangani secara Digital</b><br>
+                            Fakultas Teknik Universitas Trunojoyo Madura<br>
+                            <span style="font-size: 8.5px; color: #115e59;">ID: {{ $vId }}</span>
+                        </div>
+                    @endif
+                </td>
+            </tr>
+            <tr>
+                <td></td>
+                <td style="text-align: left;">
+                    <b>{{ $dekanNama }}</b><br>
+                    NIP. {{ $dekanNip }}
+                </td>
+            </tr>
+        </table>
+
+        @php
+            $token = $surat->confirmation_token ?? null;
+            $konfirmUrl = $konfirmasi_url ?? ($token ? url('/konfirmasi/' . $token) : null);
+        @endphp
+
+        @if($konfirmUrl)
+        <div style="margin: 25px auto 0 auto; max-width: 590px; border: 1.5px dashed #0f766e; border-radius: 8px; padding: 12px 16px; background-color: #f0fdfa; font-family: Arial, sans-serif; font-size: 11px; color: #134e4a;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 85px; vertical-align: top; text-align: center; padding-right: 12px;">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data={{ urlencode($konfirmUrl) }}" alt="QR Konfirmasi" style="width: 75px; height: 75px; border: 1px solid #99f6e4; border-radius: 4px; background: #ffffff; padding: 2px;">
+                    </td>
+                    <td style="vertical-align: top; line-height: 1.45;">
+                        <div style="font-weight: bold; font-size: 11.5px; color: #0f766e; margin-bottom: 3px; text-transform: uppercase;">
+                            Konfirmasi Penerimaan Kerja Praktik oleh Instansi
+                        </div>
+                        <div>
+                            Pihak Instansi / Pembimbing Lapangan dimohon melakukan konfirmasi penerimaan mahasiswa melalui pemindaian QR code di samping atau membuka tautan:
+                        </div>
+                        <div style="margin-top: 4px;">
+                            <a href="{{ $konfirmUrl }}" style="color: #0f766e; font-weight: bold; word-break: break-all; text-decoration: underline;">
+                                {{ $konfirmUrl }}
+                            </a>
+                        </div>
+                        <div style="margin-top: 4px; font-size: 10px; color: #115e59;">
+                            * Melalui tautan ini, Instansi dapat menyatakan persetujuan/penolakan dan mengisi kontak Pembimbing Lapangan untuk penerbitan akun portal monitoring & penilaian.
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        @endif
+    </div>
+</body>
+</html>
